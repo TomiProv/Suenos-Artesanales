@@ -1,7 +1,8 @@
 [build]
   command = "node scripts/build.js"
   publish = "public"
-[[redirects]]
-  from = "/*"
-  to = "/404.html"
-  status = 404
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID,FIREBASE_APP_ID"
+  SECRETS_SCAN_OMIT_PATHS = "public/config.js"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
