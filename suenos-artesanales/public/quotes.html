@@ -1,0 +1,47 @@
+<!doctype html><html lang="es"><head><link rel="icon" href="img/favicon.png"><title>Cotizaciones</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#6a2c91,#e0457b);color:#fff;padding:1rem}header a{color:#fff;margin-left:1rem}
+main{max-width:900px;margin:auto;padding:1rem}input,select,textarea{width:100%;padding:.5rem;margin:.2rem 0;border:2px solid #b8f2dc;border-radius:.5rem;font:inherit}
+.box{background:#fff;border-radius:.8rem;padding:.8rem;margin:.6rem 0;box-shadow:0 2px 8px #0001}.b{background:#e0457b;color:#fff;border:0;border-radius:.5rem;padding:.5rem .9rem;cursor:pointer;margin:.2rem;text-decoration:none;display:inline-block}
+#m{padding:.5rem;border-radius:.5rem}.ok{background:#b8f2dc}.er{background:#ffd6d6}small{color:#666}.row{display:flex;gap:.4rem}</style></head><body><header><b>🎀 Panel</b><a href="admin.html">Pedidos y productos</a><a href="quotes.html">Cotizaciones</a><a href="agenda.html">Calendario</a></header><main><div id="m"></div>
+<div class="box"><h3 id="t">Nueva cotización</h3><input type="hidden" id="id">
+<div class="row"><input id="cn" placeholder="Cliente *"><input id="cp" placeholder="Teléfono *"></div><input id="ce" placeholder="Correo (opcional)">
+<textarea id="cd" placeholder="Descripción del trabajo *"></textarea>
+<div class="row"><input id="cq" type="number" min="1" value="1" placeholder="Cantidad"><input id="ch" type="number" step="0.1" placeholder="Horas de producción"><input id="cv" type="number" placeholder="Validez (días)" value="7"></div>
+<b>Materiales y conceptos</b><div id="mats"></div><button class="b" id="am">+ Concepto</button>
+<div class="row"><input id="co" type="number" placeholder="Otros costos $"><input id="cs" type="number" placeholder="Envío $ (opcional, aparte)"></div>
+<input id="ct" type="number" placeholder="Total manual (vacío = automático)"><textarea id="cb" placeholder="Observaciones"></textarea>
+<select id="cst"><option>borrador<option>enviada<option>aceptada<option>rechazada<option>vencida</select>
+<p id="sum"></p><button class="b" id="sv">Guardar</button><button class="b" id="nw" style="background:#888">Limpiar</button></div><div id="list"></div></main>
+<script src="config.js"></script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,orderBy,limit,getDocs,doc,getDoc,setDoc,deleteDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const ap=initializeApp(window.FIREBASE_CONFIG),au=getAuth(ap),db=getFirestore(ap);
+const $=s=>document.querySelector(s),money=n=>"$"+Number(n||0).toLocaleString("es-AR");
+const esc=s=>String(s??"").replace(/[&<>"\x27]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\x27":"&#39;"}[c]));
+const say=(t,c="ok")=>{$("#m").textContent=t;$("#m").className=c};
+const rid=p=>{const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";return p+"-"+[...crypto.getRandomValues(new Uint8Array(8))].map(x=>A[x%A.length]).join("")};
+async function guard(cb){onAuthStateChanged(au,async u=>{if(!u){location.href="admin.html";return}
+ try{if(!(await getDoc(doc(db,"admins",u.uid))).exists())throw 0}catch(e){say("No autorizado.","er");return}cb()})}
+let hourly=8000,cond="",biz={name:"Sueños Artesanales",whatsapp:"5491158875660"},Q={};
+const mrow=(n="",v="")=>'<div class="row"><input placeholder="Concepto" value="'+esc(n)+'"><input type="number" placeholder="$" value="'+esc(v)+'"><button class="b" onclick="this.parentNode.remove();window.calc()">✕</button></div>';
+const mats=()=>[...$("#mats").querySelectorAll(".row")].map(r=>{const i=r.querySelectorAll("input");return{name:i[0].value.slice(0,80),amount:+i[1].value||0}}).filter(x=>x.name);
+function calc(){const sub=mats().reduce((a,x)=>a+x.amount,0)+(+$("#ch").value||0)*hourly+(+$("#co").value||0),sh=+$("#cs").value||0,tot=$("#ct").value!==""?+$("#ct").value:sub+sh;
+ $("#sum").innerHTML="Subtotal: <b>"+money(sub)+"</b> · Envío: <b>"+(sh?money(sh):"—")+"</b> · Total: <b>"+money(tot)+"</b> <small>(hora: "+money(hourly)+")</small>";return{sub,sh,tot}}
+window.calc=calc;["#ch","#co","#cs","#ct","#cq"].forEach(s=>$(s).addEventListener("input",calc));$("#mats").addEventListener("input",calc);
+$("#am").onclick=()=>$("#mats").insertAdjacentHTML("beforeend",mrow());
+function clr(){["id","cn","cp","ce","cd","ch","co","cs","ct","cb"].forEach(i=>$("#"+i).value="");$("#cq").value=1;$("#cv").value=window.defV||7;$("#cst").value="borrador";$("#mats").innerHTML=mrow("Materia prima")+mrow("Packaging");$("#t").textContent="Nueva cotización";calc()}
+$("#nw").onclick=clr;
+$("#sv").onclick=async()=>{if(!$("#cn").value.trim()||!$("#cp").value.trim()||!$("#cd").value.trim())return say("Completá cliente, teléfono y descripción.","er");
+ const c=calc(),id=$("#id").value||rid("QT");
+ await setDoc(doc(db,"quotations",id),{number:id,client:$("#cn").value.trim().slice(0,100),phone:$("#cp").value.slice(0,30),email:$("#ce").value.slice(0,100),description:$("#cd").value.slice(0,1500),qty:+$("#cq").value||1,hours:+$("#ch").value||0,hourly,materials:mats(),other:+$("#co").value||0,shipping:c.sh,subtotal:c.sub,total:c.tot,validDays:+$("#cv").value||7,notes:$("#cb").value.slice(0,1000),status:$("#cst").value,issuedAt:Q[id]?.issuedAt||new Date().toISOString(),updatedAt:serverTimestamp()},{merge:true});
+ say("Cotización "+id+" guardada.");clr();load()};
+async function load(){const q=await getDocs(query(collection(db,"quotations"),orderBy("updatedAt","desc"),limit(50)));Q=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));
+ $("#list").innerHTML=q.docs.map(d=>{const x=d.data();return '<div class="box"><b>'+esc(d.id)+'</b> · '+esc(x.client)+' · '+money(x.total)+' · '+esc(x.status)+'<br><button class="b" data-e="'+d.id+'">Editar</button><button class="b" data-p="'+d.id+'" style="background:#1fc8c8">PDF / Imprimir</button><a class="b" style="background:#25a244" target="_blank" href="https://wa.me/'+esc(x.phone.replace(/\D/g,""))+'?text='+encodeURIComponent(biz.name+" - Cotización "+d.id+"\nTotal: "+money(x.total)+"\nAdjunto el PDF.")+'">WhatsApp</a><button class="b" data-x="'+d.id+'" style="background:#c33">Eliminar</button></div>'}).join("")||"Sin cotizaciones."}
+$("#list").onclick=async e=>{const d=e.target.dataset,x=Q[d.e||d.p];
+ if(d.x&&confirm("¿Eliminar cotización?")){await deleteDoc(doc(db,"quotations",d.x));load()}
+ if(d.e){$("#t").textContent="Editando "+d.e;$("#id").value=d.e;$("#cn").value=x.client;$("#cp").value=x.phone;$("#ce").value=x.email||"";$("#cd").value=x.description;$("#cq").value=x.qty;$("#ch").value=x.hours||"";$("#cv").value=x.validDays;$("#co").value=x.other||"";$("#cs").value=x.shipping||"";$("#ct").value="";$("#cb").value=x.notes||"";$("#cst").value=x.status;$("#mats").innerHTML=x.materials.map(m=>mrow(m.name,m.amount)).join("");hourly=x.hourly;calc();scrollTo(0,0)}
+ if(d.p){const w=open("","_blank"),f=new Date(x.issuedAt),v=new Date(f.getTime()+x.validDays*864e5);
+ w.document.write('<title>'+d.p+'</title><body style="font-family:sans-serif;max-width:680px;margin:auto"><h1 style="color:#e0457b">'+esc(biz.name)+'</h1><p>WhatsApp: +'+esc(biz.whatsapp)+'<br>Presupuesto <b>'+d.p+'</b> · '+f.toLocaleDateString("es-AR")+'</p><h3>Cliente</h3><p>'+esc(x.client)+' · '+esc(x.phone)+' '+esc(x.email||"")+'</p><h3>Trabajo</h3><p>'+esc(x.description)+'<br>Cantidad: '+x.qty+'</p><table width=100% border=1 cellpadding=6 style="border-collapse:collapse">'+x.materials.map(m=>'<tr><td>'+esc(m.name)+'<td>'+money(m.amount)).join("")+'<tr><td>Mano de obra ('+x.hours+' h × '+money(x.hourly)+')<td>'+money(x.hours*x.hourly)+(x.other?'<tr><td>Otros<td>'+money(x.other):"")+'</table><p>Subtotal: '+money(x.subtotal)+'<br>Envío: '+(x.shipping?money(x.shipping):"a confirmar")+'</p><h2>Total: '+money(x.total)+'</h2><p>Válido hasta '+v.toLocaleDateString("es-AR")+'</p><p>'+esc(x.notes||"")+'</p><p><small>'+esc(cond)+'</small></p><script>print()<\/script>');w.document.close()}};
+guard(async()=>{const s=await getDoc(doc(db,"settings","public"));if(s.exists()){const d=s.data();hourly=d.hourly??8000;cond=d.quoteTerms||"";window.defV=d.validity||7;biz.name=d.name||biz.name;biz.whatsapp=d.whatsapp||biz.whatsapp}clr();load()});
+</script></body></html>

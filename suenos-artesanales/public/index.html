@@ -1,0 +1,74 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sueños Artesanales</title>
+<style>
+:root{--coral:#ff6b6b;--fucsia:#e0359e;--sol:#ffc93c;--turq:#1fc8c8;--menta:#b8f2dc;--crema:#fff8ee;--tx:#2b2b3a}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--crema);color:var(--tx)}
+header{background:linear-gradient(120deg,var(--fucsia),var(--coral),var(--sol));color:#fff;padding:1.5rem 1rem;text-align:center}
+header h1{margin:0;font-size:1.8rem}header p{margin:.3rem 0 0}
+#cartbtn{position:fixed;right:12px;top:12px;background:#fff;color:var(--fucsia);border:0;border-radius:2rem;padding:.6rem 1rem;font-weight:700;cursor:pointer;z-index:5}
+main{max-width:1000px;margin:auto;padding:1rem}h2{color:var(--fucsia)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem}
+.card{background:#fff;border-radius:1rem;padding:.8rem;border-top:6px solid var(--turq);box-shadow:0 3px 10px #0001}
+.card:nth-child(3n){border-color:var(--sol)}.card:nth-child(3n+1){border-color:var(--coral)}
+.card img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:.7rem;background:var(--menta)}
+.price{font-weight:800;color:var(--fucsia)}
+button.p{background:var(--fucsia);color:#fff;border:0;border-radius:.6rem;padding:.6rem 1rem;font-weight:700;cursor:pointer;width:100%}
+#panel{display:none;position:fixed;inset:0;background:#0007;z-index:9}#panel>div{background:#fff;max-width:480px;margin:2rem auto;padding:1rem;border-radius:1rem;max-height:90vh;overflow:auto}
+input,textarea{width:100%;padding:.6rem;margin:.3rem 0;border:2px solid var(--menta);border-radius:.5rem;font:inherit}
+.row{display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin:.4rem 0}
+#msg{padding:.6rem;border-radius:.5rem;margin:.5rem 0}.ok{background:var(--menta)}.err{background:#ffd6d6}
+</style><link rel="icon" href="img/favicon.png"><link rel="stylesheet" href="theme.css"></head><body>
+<header><h1 class="brand">Sueños Artesanales</h1><p id="welcome">Piñatas, carteles, decoración de telones escolares y carteras temáticas, hechas a mano con mucho cariño.</p></header>
+<button id="cartbtn">🛒 Carrito (<span id="cnt">0</span>)</button>
+<main><h2>Productos</h2><div id="grid">Cargando…</div>
+<p><a href="fiestas.html">🎉 Fechas festivas y trabajos</a> · <a href="custom.html">✨ Pedido personalizado</a> · <a id="wa" href="#">💬 Consultar por WhatsApp</a></p></main><footer>Hecho a mano por Adriana 💕<br><a href="https://instagram.com/suenios_artesanales1" target="_blank" rel="noopener">Instagram: @suenios_artesanales1</a></footer>
+<div id="panel"><div><h2>Tu pedido</h2><div id="items"></div>
+<div class="row"><b>Total productos</b><b id="tot">$0</b></div><p><small>Envío: pendiente de confirmar.</small></p>
+<input id="nm" placeholder="Nombre y apellido *" maxlength="100"><input id="ph" placeholder="Teléfono / WhatsApp *" maxlength="30">
+<textarea id="nt" placeholder="Observaciones" maxlength="500"></textarea><div id="msg"></div>
+<button class="p" id="send">Confirmar pedido</button><button class="p" id="close" style="background:#888;margin-top:.5rem">Seguir comprando</button></div></div>
+<script src="config.js"></script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,query,where,getDocs,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const db=getFirestore(initializeApp(window.FIREBASE_CONFIG));
+const $=s=>document.querySelector(s),money=n=>'$'+Number(n).toLocaleString('es-AR');
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+let products={},cart=JSON.parse(localStorage.getItem('sa_cart2')||'{}'),waNum='5491158875660',lastWa='';
+const save=()=>{localStorage.setItem('sa_cart2',JSON.stringify(cart));render()};
+const ex=(p,l)=>(l.x||[]).map(i=>(p.extras||[])[i]).filter(Boolean);
+const unit=(p,l)=>p.price+ex(p,l).reduce((a,x)=>a+x.price,0);
+const label=(p,l)=>[l.v,...ex(p,l).map(x=>x.name)].filter(Boolean).join(', ');
+try{const s=await getDoc(doc(db,'settings','public'));if(s.exists()){waNum=s.data().whatsapp||waNum;if(s.data().welcome)$('#welcome').textContent=s.data().welcome;if(s.data().logo)document.querySelector('header h1').insertAdjacentHTML('afterbegin','<img src="'+esc(s.data().logo)+'" height="40" alt=""> ')}}catch(e){}
+$('#wa').href='https://wa.me/'+waNum;
+try{const q=await getDocs(query(collection(db,'products'),where('published','==',true)));
+ q.forEach(d=>products[d.id]=d.data());
+ $('#grid').innerHTML=Object.entries(products).filter(([,p])=>p.available!==false).map(([id,p])=>`<div class="card"><img alt="${esc(p.name)}" src="${esc((p.images||[])[0]||'')}"><h3>${esc(p.name)}</h3><p>${esc(p.description||'')}</p>${(p.variants||[]).length?`<select class="v">${p.variants.map(v=>`<option>${esc(v)}</option>`).join('')}</select>`:''}${(p.extras||[]).map((x,i)=>`<label style="display:block"><input type="checkbox" class="x" value="${i}" style="width:auto"> ${esc(x.name)} (+${money(x.price)})</label>`).join('')}<div class="price">${money(p.price)}</div><button class="p" data-id="${id}">Agregar al carrito</button></div>`).join('')||'Pronto habrá productos.';
+}catch(e){$('#grid').textContent='No se pudo cargar el catálogo.'}
+$('#grid').onclick=e=>{const id=e.target.dataset.id;if(!id)return;const c=e.target.closest('.card'),v=c.querySelector('.v')?.value||'',x=[...c.querySelectorAll('.x:checked')].map(i=>+i.value),k=id+'|'+v+'|'+x.join(',');
+ cart[k]=cart[k]||{id,v,x,q:0};cart[k].q++;save()};
+function render(){let t=0,n=0;$('#items').innerHTML=Object.entries(cart).filter(([,l])=>products[l.id]).map(([k,l])=>{const p=products[l.id],u=unit(p,l);t+=u*l.q;n+=l.q;
+ return `<div class="row"><span>${esc(p.name)}<br><small>${esc(label(p,l))} ${money(u)} c/u</small></span><span><button data-d="${esc(k)}">−</button> ${l.q} <button data-u="${esc(k)}">+</button></span><b>${money(u*l.q)}</b></div>`}).join('')||'El carrito está vacío.';
+ $('#cnt').textContent=n;$('#tot').textContent=money(t)}
+$('#items').onclick=e=>{const d=e.target.dataset;if(d.u&&cart[d.u])cart[d.u].q++;if(d.d&&cart[d.d]&&--cart[d.d].q<=0)delete cart[d.d];save()};
+$('#cartbtn').onclick=()=>{render();$('#panel').style.display='block'};$('#close').onclick=()=>$('#panel').style.display='none';
+const msg=(t,c)=>{$('#msg').textContent=t;$('#msg').className=c};
+$('#send').onclick=async()=>{
+ const name=$('#nm').value.trim(),phone=$('#ph').value.trim();
+ if(name.length<2||phone.length<6)return msg('Completá nombre y teléfono.','err');
+ const ls=Object.values(cart).filter(l=>products[l.id]);if(!ls.length)return msg('El carrito está vacío.','err');
+ const items=[];let total=0,fresh={};
+ for(const l of ls){if(!fresh[l.id]){const s=await getDoc(doc(db,'products',l.id));fresh[l.id]=s.exists()?s.data():null}
+  const p=fresh[l.id];if(!p||!p.published||p.available===false)return msg('Un producto ya no está disponible: '+products[l.id].name,'err');
+  if(l.v&&!(p.variants||[]).includes(l.v))return msg('La opción "'+l.v+'" ya no existe en '+p.name+'. Quitalo y volvé a agregarlo.','err');
+  if((l.x||[]).some(i=>!(p.extras||[])[i]))return msg('Un adicional de '+p.name+' cambió. Quitalo y volvé a agregarlo.','err');
+  const u=unit(p,l);items.push({productId:l.id,name:p.name,variant:l.v||'',extras:ex(p,l).map(x=>x.name),unitPrice:u,qty:l.q,subtotal:u*l.q});total+=u*l.q}
+ const b=crypto.getRandomValues(new Uint8Array(8)),A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+ const oid='SA-'+[...b].map(x=>A[x%A.length]).join('');
+ try{await setDoc(doc(db,'orders',oid),{customerName:name,phone,items,itemsTotal:total,shipping:'pendiente',status:'nuevo',source:'web',notes:$('#nt').value.slice(0,500),createdAt:serverTimestamp()})}
+ catch(e){return msg('No se pudo registrar el pedido. Probá de nuevo.','err')}
+ lastWa='https://wa.me/'+waNum+'?text='+encodeURIComponent(`Sueños Artesanales\nPedido ${oid}\nCliente: ${name}\nTel: ${phone}\n\n`+items.map(i=>`• ${i.name}${i.variant||i.extras.length?' ('+[i.variant,...i.extras].filter(Boolean).join(', ')+')':''} x${i.qty} (${money(i.unitPrice)}) = ${money(i.subtotal)}`).join('\n')+`\n\nTotal productos: ${money(total)}\nEnvío: pendiente de confirmar`);
+ cart={};save();msg(`✅ Pedido ${oid} registrado. Falta enviar el mensaje por WhatsApp.`,'ok');
+ $('#msg').insertAdjacentHTML('beforeend',` <a href="${lastWa}" target="_blank" rel="noopener">Abrir WhatsApp</a>`);window.open(lastWa,'_blank')};
+render();
+</script></body></html>

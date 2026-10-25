@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // Admin = existe /admins/{uid}. Se crea SOLO a mano desde la consola de Firebase.
+    function isAdmin() { return request.auth != null && exists(/databases/$(db)/documents/admins/$(request.auth.uid)); }
+
+    match /admins/{uid} { allow read: if request.auth != null && request.auth.uid == uid; allow write: if false; }
+
+    // Datos públicos: solo lo publicado. Los costos internos van en /productCosts (privado).
+    match /settings/public { allow read: if true; allow write: if isAdmin(); }
+    match /products/{id} { allow read: if resource.data.published == true || isAdmin(); allow write: if isAdmin(); }
+    match /productCosts/{id} { allow read, write: if isAdmin(); }
+    match /holidayCampaigns/{id} { allow read: if resource.data.published == true || isAdmin(); allow write: if isAdmin(); }
+    match /portfolio/{id} { allow read: if resource.data.published == true || isAdmin(); allow write: if isAdmin(); }
+
+    // Pedidos: el público SOLO puede crear (nunca leer, listar ni modificar).
+    match /orders/{orderId} {
+      allow create: if orderId.matches('SA-[A-Z0-9]{8}')
+        && request.resource.data.keys().hasOnly(['customerName','phone','items','itemsTotal','shipping','status','source','notes','createdAt'])
+        && request.resource.data.customerName is string && request.resource.data.customerName.size() >= 2 && request.resource.data.customerName.size() <= 100
+        && request.resource.data.phone is string && request.resource.data.phone.size() >= 6 && request.resource.data.phone.size() <= 30
+        && request.resource.data.items is list && request.resource.data.items.size() >= 1 && request.resource.data.items.size() <= 50
+        && request.resource.data.itemsTotal is number && request.resource.data.itemsTotal >= 0
+        && request.resource.data.shipping == 'pendiente'
+        && request.resource.data.status == 'nuevo'
+        && request.resource.data.source == 'web'
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if isAdmin();
+    }
+    // Pedidos personalizados: el público solo crea (no lee). Pasan a cotización por decisión del administrador.
+    match /customRequests/{rid} {
+      allow create: if rid.matches('PC-[A-Z0-9]{8}')
+        && request.resource.data.keys().hasOnly(['name','phone','email','eventType','description','qty','desiredDate','budget','status','createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 100
+        && request.resource.data.phone is string && request.resource.data.phone.size() >= 6 && request.resource.data.phone.size() <= 30
+        && request.resource.data.description is string && request.resource.data.description.size() >= 5 && request.resource.data.description.size() <= 1500
+        && request.resource.data.status == 'nueva'
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if isAdmin();
+    }
+    match /quotations/{id} { allow read, write: if isAdmin(); }
+    match /calendarEvents/{id} { allow read, write: if isAdmin(); }
+    match /{other=**} { allow read, write: if false; }
+  }
+}

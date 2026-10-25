@@ -1,0 +1,37 @@
+<!doctype html><html lang="es"><head><link rel="icon" href="img/favicon.png"><title>Calendario</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#6a2c91,#e0457b);color:#fff;padding:1rem}header a{color:#fff;margin-left:1rem}
+main{max-width:900px;margin:auto;padding:1rem}input,select,textarea{width:100%;padding:.5rem;margin:.2rem 0;border:2px solid #b8f2dc;border-radius:.5rem;font:inherit}
+.box{background:#fff;border-radius:.8rem;padding:.8rem;margin:.6rem 0;box-shadow:0 2px 8px #0001}.b{background:#e0457b;color:#fff;border:0;border-radius:.5rem;padding:.5rem .9rem;cursor:pointer;margin:.2rem;text-decoration:none;display:inline-block}
+#m{padding:.5rem;border-radius:.5rem}.ok{background:#b8f2dc}.er{background:#ffd6d6}small{color:#666}.row{display:flex;gap:.4rem}</style></head><body><header><b>🎀 Panel</b><a href="admin.html">Pedidos y productos</a><a href="quotes.html">Cotizaciones</a><a href="agenda.html">Calendario</a></header><main><div id="m"></div>
+<div class="box"><h3>Nuevo evento</h3><input id="ti" placeholder="Título *"><textarea id="de" placeholder="Descripción"></textarea>
+<div class="row"><input id="fe" type="date"><select id="ty"><option>entrega<option>producción<option>festiva<option>campaña<option>recordatorio<option>nota</select><select id="pr"><option>media<option>alta<option>baja</select></div>
+<input id="or" placeholder="Pedido relacionado (ej. SA-ABCD1234, opcional)"><button class="b" id="sv">Guardar evento</button></div>
+<div class="box"><h3>⏰ Recordatorios de fechas festivas</h3><div id="rem">—</div></div>
+<div class="box"><select id="vw"><option value="31">Mes</option><option value="7">Semana</option><option value="1">Día</option></select><div id="list"></div></div></main>
+<script src="config.js"></script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,orderBy,limit,getDocs,doc,getDoc,setDoc,deleteDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const ap=initializeApp(window.FIREBASE_CONFIG),au=getAuth(ap),db=getFirestore(ap);
+const $=s=>document.querySelector(s),money=n=>"$"+Number(n||0).toLocaleString("es-AR");
+const esc=s=>String(s??"").replace(/[&<>"\x27]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\x27":"&#39;"}[c]));
+const say=(t,c="ok")=>{$("#m").textContent=t;$("#m").className=c};
+const rid=p=>{const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";return p+"-"+[...crypto.getRandomValues(new Uint8Array(8))].map(x=>A[x%A.length]).join("")};
+async function guard(cb){onAuthStateChanged(au,async u=>{if(!u){location.href="admin.html";return}
+ try{if(!(await getDoc(doc(db,"admins",u.uid))).exists())throw 0}catch(e){say("No autorizado.","er");return}cb()})}
+const LEAD=[60,30,15,7];let E={},wa="5491158875660";
+const days=f=>Math.round((new Date(f+"T00:00:00")-new Date(new Date().toDateString()))/864e5);
+$("#sv").onclick=async()=>{if(!$("#ti").value.trim()||!$("#fe").value)return say("Falta título o fecha.","er");const id=rid("EV");
+ await setDoc(doc(db,"calendarEvents",id),{title:$("#ti").value.trim().slice(0,120),description:$("#de").value.slice(0,500),date:$("#fe").value,type:$("#ty").value,priority:$("#pr").value,orderId:$("#or").value.slice(0,20),done:{},createdAt:serverTimestamp()});
+ say("Evento guardado.");["ti","de","or"].forEach(i=>$("#"+i).value="");load()};
+async function load(){const q=await getDocs(query(collection(db,"calendarEvents"),orderBy("date"),limit(200)));E=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));
+ const n=+$("#vw").value;const rows=Object.entries(E).filter(([,e])=>{const d=days(e.date);return d>=0&&d<=n});
+ $("#list").innerHTML=rows.map(([id,e])=>'<div class="box"><b>'+esc(e.date)+'</b> · '+esc(e.title)+' <small>('+esc(e.type)+', prioridad '+esc(e.priority)+(e.orderId?', pedido '+esc(e.orderId):"")+')</small><br>'+esc(e.description)+'<br><button class="b" data-x="'+id+'" style="background:#c33">Eliminar</button></div>').join("")||"Sin eventos en este período.";
+ const r=[];for(const [id,e] of Object.entries(E).filter(([,e])=>e.type==="festiva"||e.type==="campaña")){const d=days(e.date);
+  for(const L of LEAD)if(d>=0&&d<=L&&!(e.done||{})[L]&&d>(LEAD[LEAD.indexOf(L)+1]||-1))r.push('<p>🎉 <b>'+esc(e.title)+'</b> es en '+d+' días (aviso de '+L+'). <a class="b" target="_blank" href="https://wa.me/?text='+encodeURIComponent("¡Hola! Se acerca "+e.title+". Hacemos propuestas personalizadas en Sueños Artesanales. ¿Querés que te mostremos opciones?")+'">Preparar mensaje</a><button class="b" data-d="'+id+'|'+L+'">Marcar como enviado</button></p>')}
+ $("#rem").innerHTML=r.join("")||"Sin recordatorios pendientes."}
+document.addEventListener("click",async e=>{const d=e.target.dataset;
+ if(d.x&&confirm("¿Eliminar evento?")){await deleteDoc(doc(db,"calendarEvents",d.x));load()}
+ if(d.d){const [id,L]=d.d.split("|");await setDoc(doc(db,"calendarEvents",id),{done:{...(E[id].done||{}),[L]:true}},{merge:true});load()}});
+$("#vw").onchange=load;guard(load);
+</script></body></html>

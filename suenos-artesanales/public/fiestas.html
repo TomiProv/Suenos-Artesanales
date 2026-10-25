@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fechas festivas y trabajos · Sueños Artesanales</title>
+<style>:root{--f:#e0359e}body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#1fc8c8,#e0359e,#ffc93c);color:#fff;padding:1.2rem;text-align:center}header a{color:#fff}
+main{max-width:1000px;margin:auto;padding:1rem}h2{color:var(--f)}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem}
+.c{background:#fff;border-radius:1rem;padding:.8rem;border-top:6px solid #ffc93c;box-shadow:0 3px 10px #0001}.c:nth-child(2n){border-color:#1fc8c8}.c:nth-child(3n){border-color:#ff6b6b}
+.c img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:.7rem;background:#b8f2dc}.tag{background:#ffc93c;border-radius:1rem;padding:.2rem .6rem;font-size:.85rem;font-weight:700}</style><link rel="icon" href="img/favicon.png"><link rel="stylesheet" href="theme.css"></head><body>
+<header><div class="brand">Sueños Artesanales</div><h1>Fechas festivas y trabajos</h1><a href="/">← Tienda</a> · <a href="custom.html">✨ Pedido personalizado</a></header>
+<main><h2>Fechas festivas</h2><div class="g" id="fc">Cargando…</div><h2>Trabajos realizados</h2><div class="g" id="pf">Cargando…</div></main>
+<script src="config.js"></script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,query,where,getDocs} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const db=getFirestore(initializeApp(window.FIREBASE_CONFIG)),$=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pub=c=>getDocs(query(collection(db,c),where("published","==",true)));
+const today=new Date().toISOString().slice(0,10);
+try{const [pr,cp]=await Promise.all([pub("products"),pub("holidayCampaigns")]);const P=Object.fromEntries(pr.docs.map(d=>[d.id,d.data()]));
+ $("#fc").innerHTML=cp.docs.map(d=>d.data()).filter(c=>(!c.startDate||c.startDate<=today)&&(!c.endDate||c.endDate>=today)).map(c=>`<div class="c">${c.image?`<img src="${esc(c.image)}" alt="${esc(c.name)}">`:""}<h3>${esc(c.name)}</h3>${c.promo?`<span class="tag">${esc(c.promo)}</span>`:""}<p>${esc(c.description)}</p>${c.orderDeadline?`<p><b>Pedí antes del ${esc(c.orderDeadline)}</b></p>`:""}<p>${(c.productIds||[]).filter(i=>P[i]).map(i=>`• ${esc(P[i].name)} ($${Number(P[i].price).toLocaleString("es-AR")})`).join("<br>")}</p></div>`).join("")||"Pronto novedades."}catch(e){$("#fc").textContent="No se pudo cargar."}
+try{const q=await pub("portfolio");$("#pf").innerHTML=q.docs.map(d=>d.data()).sort((a,b)=>(a.order||0)-(b.order||0)).map(w=>`<div class="c">${w.image?`<img src="${esc(w.image)}" alt="${esc(w.title)}">`:""}<h3>${esc(w.title)}</h3><small>${esc(w.category||"")} ${esc(w.date||"")} ${esc(w.campaign||"")}</small><p>${esc(w.description)}</p></div>`).join("")||"Pronto vas a ver nuestros trabajos."}catch(e){$("#pf").textContent="No se pudo cargar."}
+</script></body></html>

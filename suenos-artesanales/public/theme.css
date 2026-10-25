@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Pacifico&display=swap');
+/* Tema de marca (provisorio, derivado del logo). Ver docs/MANUAL_DE_MARCA.md */
+:root{--morado:#6a2c91;--fucsia:#e0457b;--rosa:#f8c8dc;--crema:#fff8f6;--verde:#7bc47f;--lila:#b79ae0;--sol:#f6c945;--celeste:#7ec8f0;--tx:#3a1f4d}
+body{font-family:Nunito,system-ui,sans-serif;background:var(--crema);color:var(--tx)}
+header{background:var(--crema)!important;color:var(--morado)!important;border-bottom:4px dashed var(--rosa)}
+header a{color:var(--fucsia)!important;font-weight:700}
+.logo{display:block;margin:0 auto .3rem;width:min(260px,70vw);height:auto}
+.sr{position:absolute;left:-9999px}
+h2,h3{font-family:Pacifico,cursive;color:var(--morado);font-weight:400}
+#welcome{font-size:1.05rem;color:var(--tx)}
+.card,.c{border-radius:1.2rem!important;border-top:6px solid var(--fucsia)!important;box-shadow:0 4px 14px #6a2c9115!important}
+.card:nth-child(4n+2),.c:nth-child(4n+2){border-color:var(--lila)!important}.card:nth-child(4n+3),.c:nth-child(4n+3){border-color:var(--verde)!important}.card:nth-child(4n),.c:nth-child(4n){border-color:var(--sol)!important}
+.price{color:var(--fucsia)!important}
+button.p,#s,.b{background:var(--fucsia)!important;border-radius:2rem!important;font-family:Nunito,sans-serif}
+#cartbtn{background:var(--morado)!important;color:#fff!important}
+input,select,textarea{border-color:var(--rosa)!important}
+.tag{background:var(--sol)!important}
+footer{text-align:center;padding:1.5rem 1rem;background:var(--rosa);color:var(--morado);margin-top:2rem}footer a{color:var(--fucsia);font-weight:700}
+.brand{font-family:Pacifico,cursive;font-size:2.2rem;font-weight:400;color:var(--morado);text-align:center;margin:0;line-height:1.2}
+header h1{font-family:Pacifico,cursive;font-weight:400}

@@ -1,0 +1,38 @@
+<!doctype html><html lang="es"><head><link rel="icon" href="img/favicon.png"><title>Pedidos manuales</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#6a2c91,#e0457b);color:#fff;padding:1rem}header a{color:#fff;margin-left:1rem}
+main{max-width:900px;margin:auto;padding:1rem}input,select,textarea{width:100%;padding:.5rem;margin:.2rem 0;border:2px solid #b8f2dc;border-radius:.5rem;font:inherit}.box{background:#fff;border-radius:.8rem;padding:.8rem;margin:.6rem 0;box-shadow:0 2px 8px #0001}
+.b{background:#e0457b;color:#fff;border:0;border-radius:.5rem;padding:.5rem .9rem;cursor:pointer;margin:.2rem;text-decoration:none;display:inline-block}#m{padding:.5rem;border-radius:.5rem}.ok{background:#b8f2dc}.er{background:#ffd6d6}.row{display:flex;gap:.4rem}</style></head><body>
+<header><b>🎀 Panel</b><a href="admin.html">Pedidos y productos</a><a href="quotes.html">Cotizaciones</a><a href="agenda.html">Calendario</a><a href="manual.html">Pedido manual y solicitudes</a></header>
+<main><div id="m"></div><div class="box"><h3>Cargar pedido manual</h3>
+<div class="row"><input id="cn" placeholder="Cliente *"><input id="cp" placeholder="Teléfono *"></div>
+<div class="row"><select id="so"><option>whatsapp<option>redes sociales<option>presencial<option>teléfono<option>otro</select><input id="fd" type="date" title="Fecha de entrega"></div>
+<select id="cat"><option value="">+ Agregar producto del catálogo…</select><div id="its"></div><button class="b" id="ai">+ Concepto libre</button>
+<div class="row"><input id="sh" type="number" min="0" placeholder="Envío \$ (vacío = pendiente)"><select id="st"><option>nuevo<option>confirmado<option>en producción</select></div>
+<textarea id="nt" placeholder="Observaciones"></textarea><p id="tot"></p><button class="b" id="sv">Guardar pedido</button></div>
+<div class="box"><h3>Solicitudes personalizadas</h3><div id="rq">Cargando…</div></div></main>
+<script src="config.js"></script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,orderBy,limit,getDocs,doc,getDoc,setDoc,updateDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const ap=initializeApp(window.FIREBASE_CONFIG),au=getAuth(ap),db=getFirestore(ap),$=s=>document.querySelector(s),money=n=>"$"+Number(n||0).toLocaleString("es-AR");
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const say=(t,c="ok")=>{$("#m").textContent=t;$("#m").className=c};
+const row=(n="",q=1,p="")=>`<div class="row"><input placeholder="Concepto" value="${esc(n)}"><input type="number" min="1" value="${q}" style="width:70px"><input type="number" min="0" placeholder="Precio acordado" value="${p}"><button class="b" onclick="this.parentNode.remove();window.t()">✕</button></div>`;
+const items=()=>[...$("#its").querySelectorAll(".row")].map(r=>{const i=r.querySelectorAll("input"),q=+i[1].value||1,p=+i[2].value||0;return{name:i[0].value.trim().slice(0,100),qty:q,unitPrice:p,subtotal:q*p}}).filter(x=>x.name);
+const t=()=>{const s=items().reduce((a,x)=>a+x.subtotal,0),e=+$("#sh").value||0;$("#tot").innerHTML=`Productos: <b>${money(s)}</b> · Total: <b>${money(s+e)}</b>`;return s};window.t=t;
+$("#its").addEventListener("input",t);$("#sh").addEventListener("input",t);$("#ai").onclick=()=>$("#its").insertAdjacentHTML("beforeend",row());
+$("#cat").onchange=e=>{const p=window._c[e.target.value];if(p)$("#its").insertAdjacentHTML("beforeend",row(p.name,1,p.price));e.target.value="";t()};
+$("#sv").onclick=async()=>{const it=items();if(!$("#cn").value.trim()||!$("#cp").value.trim()||!it.length)return say("Falta cliente, teléfono o productos.","er");
+ const id="SA-"+[...crypto.getRandomValues(new Uint8Array(8))].map(x=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[x%32]).join(""),sh=$("#sh").value===""?"pendiente":+$("#sh").value;
+ await setDoc(doc(db,"orders",id),{customerName:$("#cn").value.trim().slice(0,100),phone:$("#cp").value.trim().slice(0,30),items:it,itemsTotal:t(),shipping:sh,status:$("#st").value,source:$("#so").value,notes:$("#nt").value.slice(0,500),deliveryDate:$("#fd").value,createdAt:serverTimestamp(),history:[{status:$("#st").value,at:new Date().toISOString()}]});
+ say("Pedido "+id+" guardado. Lo ves y lo imprimís desde Pedidos y productos.");$("#its").innerHTML="";["cn","cp","sh","nt","fd"].forEach(i=>$("#"+i).value="");t()};
+async function reqs(){const q=await getDocs(query(collection(db,"customRequests"),orderBy("createdAt","desc"),limit(30)));
+ $("#rq").innerHTML=q.docs.map(d=>{const r=d.data();return `<div class="box"><b>${esc(d.id)}</b> · ${esc(r.name)} · ${esc(r.eventType)} · <i>${esc(r.status)}</i><br>${esc(r.description)}<br><small>Cant: ${r.qty||"-"} · Entrega: ${esc(r.desiredDate||"-")} · Presupuesto: ${r.budget?money(r.budget):"-"}</small><br>
+ <a class="b" style="background:#25a244" target="_blank" href="https://wa.me/${esc(r.phone.replace(/\D/g,""))}">WhatsApp</a><a class="b" style="background:#1fc8c8" href="quotes.html">Hacer cotización</a>
+ <button class="b" data-s="${d.id}|cotizada">Marcar cotizada</button><button class="b" data-s="${d.id}|descartada" style="background:#888">Descartar</button></div>`}).join("")||"Sin solicitudes."}
+$("#rq").onclick=async e=>{const s=e.target.dataset.s;if(!s)return;const [id,st]=s.split("|");await updateDoc(doc(db,"customRequests",id),{status:st});reqs()};
+onAuthStateChanged(au,async u=>{if(!u){location.href="admin.html";return}
+ try{if(!(await getDoc(doc(db,"admins",u.uid))).exists())throw 0}catch(e){say("No autorizado.","er");return}
+ const q=await getDocs(query(collection(db,"products"),limit(100)));window._c=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));
+ $("#cat").innerHTML+=q.docs.map(d=>`<option value="${d.id}">${esc(d.data().name)} — ${money(d.data().price)}</option>`).join("");t();reqs()});
+</script></body></html>

@@ -1,0 +1,41 @@
+<!doctype html><html lang="es"><head><link rel="icon" href="img/favicon.png"><title>Campañas y galería</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#6a2c91,#e0457b);color:#fff;padding:1rem}header a{color:#fff;margin-left:1rem}
+main{max-width:900px;margin:auto;padding:1rem}input,select,textarea{width:100%;padding:.5rem;margin:.2rem 0;border:2px solid #b8f2dc;border-radius:.5rem;font:inherit}.box{background:#fff;border-radius:.8rem;padding:.8rem;margin:.6rem 0;box-shadow:0 2px 8px #0001}
+.b{background:#e0457b;color:#fff;border:0;border-radius:.5rem;padding:.5rem .9rem;cursor:pointer;margin:.2rem}#m{padding:.5rem;border-radius:.5rem}.ok{background:#b8f2dc}.er{background:#ffd6d6}label{display:block}input[type=checkbox]{width:auto}</style></head><body>
+<header><b>🎀 Panel</b><a href="admin.html">Pedidos y productos</a><a href="quotes.html">Cotizaciones</a><a href="agenda.html">Calendario</a><a href="manual.html">Pedido manual</a><a href="content.html">Campañas y galería</a></header>
+<main><div id="m"></div><select id="ty"><option value="holidayCampaigns">Campañas / fechas festivas</option><option value="portfolio">Trabajos realizados</option></select>
+<div class="box"><h3 id="ft">Nuevo</h3><div id="form"></div><button class="b" id="sv">Guardar</button><button class="b" id="cl" style="background:#888">Limpiar</button></div><div id="list"></div></main>
+<script src="config.js"></script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,limit,getDocs,doc,getDoc,setDoc,updateDoc,deleteDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const ap=initializeApp(window.FIREBASE_CONFIG),au=getAuth(ap),db=getFirestore(ap),$=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const say=(t,c="ok")=>{$("#m").textContent=t;$("#m").className=c};
+const S={holidayCampaigns:[["name","Nombre *","text"],["description","Descripción","area"],["promo","Mensaje promocional","text"],["startDate","Publicar desde","date"],["endDate","Publicar hasta","date"],["orderDeadline","Fecha límite sugerida de pedidos","date"],["productIds","Productos asociados","products"],["image","Imagen","image"],["published","Publicado","bool"]],
+ portfolio:[["title","Título *","text"],["description","Descripción","area"],["category","Categoría","text"],["date","Fecha","date"],["campaign","Campaña o evento relacionado","text"],["order","Orden de visualización","number"],["image","Foto","image"],["published","Publicado","bool"]]};
+let P={},D={},img="";
+const t=()=>$("#ty").value,key=t=>t==="holidayCampaigns"?"name":"title";
+function form(d={}){img=d.image||"";$("#form").innerHTML=S[t()].map(([k,l,ty])=>{const v=d[k];
+ if(ty==="area")return `<textarea id="f_${k}" placeholder="${l}" maxlength="800">${esc(v)}</textarea>`;
+ if(ty==="bool")return `<label><input type="checkbox" id="f_${k}" ${v?"checked":""}> ${l}</label>`;
+ if(ty==="image")return `<label>${l} (se comprime a WebP): <input type="file" id="f_${k}" accept="image/*"></label><img id="pv" src="${esc(img)}" style="max-width:100px">`;
+ if(ty==="products")return `<b>${l}</b>`+Object.entries(P).map(([id,p])=>`<label><input type="checkbox" class="pp" value="${id}" ${(v||[]).includes(id)?"checked":""}> ${esc(p.name)}</label>`).join("");
+ return `<input id="f_${k}" type="${ty}" placeholder="${l}" value="${esc(v)}">`}).join("");
+ const fi=$("#f_image");if(fi)fi.onchange=async e=>{const f=e.target.files[0];if(!f)return;const bm=await createImageBitmap(f);let w=600,q=.8,u;
+  do{const k=Math.min(1,w/bm.width),c=document.createElement("canvas");c.width=bm.width*k;c.height=bm.height*k;c.getContext("2d").drawImage(bm,0,0,c.width,c.height);u=c.toDataURL("image/webp",q);w-=70;q-=.1}while(u.length>150000&&w>150);
+  if(u.length>150000)return say("Imagen demasiado grande, usá otra.","er");img=u;$("#pv").src=u;say("Imagen lista ("+Math.round(u.length/1024)+" KB).")}}
+async function load(){const c=t();const q=await getDocs(query(collection(db,c),limit(100)));D=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));
+ $("#list").innerHTML=Object.entries(D).map(([id,d])=>`<div class="box">${d.image?`<img src="${esc(d.image)}" width="60"> `:""}<b>${esc(d[key(c)])}</b> ${d.published?"🟢 publicado":"⚪ oculto"}<br><button class="b" data-e="${id}">Editar</button><button class="b" data-t="${id}" style="background:#1fc8c8">${d.published?"Ocultar":"Publicar"}</button><button class="b" data-x="${id}" style="background:#c33">Eliminar</button></div>`).join("")||"Nada cargado todavía."}
+$("#sv").onclick=async()=>{const c=t(),o={};for(const [k,,ty] of S[c]){if(ty==="products")o[k]=[...document.querySelectorAll(".pp:checked")].map(x=>x.value);else if(ty==="image")o[k]=img;else if(ty==="bool")o[k]=$("#f_"+k).checked;else if(ty==="number")o[k]=+$("#f_"+k).value||0;else o[k]=$("#f_"+k).value.trim().slice(0,800)}
+ if(!o[key(c)])return say("Falta el nombre o título.","er");const id=$("#ft").dataset.id||doc(collection(db,c)).id;o.updatedAt=serverTimestamp();await setDoc(doc(db,c,id),o,{merge:true});say("Guardado.");$("#ft").dataset.id="";$("#ft").textContent="Nuevo";form();load()};
+$("#cl").onclick=()=>{$("#ft").dataset.id="";$("#ft").textContent="Nuevo";form()};
+$("#ty").onchange=()=>{$("#cl").onclick();load()};
+$("#list").onclick=async e=>{const d=e.target.dataset,c=t();
+ if(d.t){await updateDoc(doc(db,c,d.t),{published:!D[d.t].published});load()}
+ if(d.x&&confirm("¿Eliminar?")){await deleteDoc(doc(db,c,d.x));load()}
+ if(d.e){$("#ft").dataset.id=d.e;$("#ft").textContent="Editando";form(D[d.e]);scrollTo(0,0)}};
+onAuthStateChanged(au,async u=>{if(!u){location.href="admin.html";return}
+ try{if(!(await getDoc(doc(db,"admins",u.uid))).exists())throw 0}catch(e){say("No autorizado.","er");return}
+ const q=await getDocs(query(collection(db,"products"),limit(100)));P=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));form();load()});
+</script></body></html>

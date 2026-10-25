@@ -1,0 +1,106 @@
+<!doctype html><html lang="es"><head><link rel="icon" href="img/favicon.png"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Panel · Sueños Artesanales</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#fff8ee;color:#2b2b3a}header{background:linear-gradient(120deg,#6a2c91,#e0457b);color:#fff;padding:1rem}
+main{max-width:900px;margin:auto;padding:1rem}nav button{border:0;background:#1fc8c8;color:#fff;padding:.6rem 1rem;border-radius:.6rem;margin:0 .3rem .5rem 0;font-weight:700;cursor:pointer}nav button.on{background:#e0457b}
+section{display:none}section.on{display:block}input,select,textarea{width:100%;padding:.5rem;margin:.2rem 0;border:2px solid #b8f2dc;border-radius:.5rem;font:inherit}
+.box{background:#fff;border-radius:.8rem;padding:.8rem;margin:.6rem 0;box-shadow:0 2px 8px #0001}button.b{background:#e0457b;color:#fff;border:0;border-radius:.5rem;padding:.5rem .9rem;cursor:pointer;margin:.2rem}
+#m{padding:.5rem;border-radius:.5rem}.ok{background:#b8f2dc}.er{background:#ffd6d6}small{color:#666}
+</style></head><body><header><b>🎀 Panel de Sueños Artesanales</b> <button class="b" id="out" style="float:right;display:none">Salir</button></header>
+<main><div id="m"></div>
+<div id="login" class="box"><h3>Ingresar</h3><input id="em" type="email" placeholder="Correo"><input id="pw" type="password" placeholder="Contraseña"><button class="b" id="go">Entrar</button></div>
+<div id="app" style="display:none"><nav><a href="quotes.html" style="margin-right:.5rem">Cotizaciones</a><a href="agenda.html" style="margin-right:.5rem">Calendario</a><a href="manual.html" style="margin-right:.5rem">Pedido manual</a><a href="content.html" style="margin-right:.5rem">Campañas y galería</a><button data-t="ped" class="on">Pedidos</button><button data-t="pro">Productos</button><button data-t="set">Ajustes</button></nav>
+<section id="ped" class="on"><div class="box"><input id="fq" placeholder="Buscar por número, nombre o teléfono">
+<select id="fs"><option value="">Todos los estados</option></select><select id="fo"><option value="">Todos los orígenes</option><option>web</option><option>whatsapp</option><option>redes sociales</option><option>presencial</option><option>teléfono</option><option>otro</option></select>
+<input id="fd1" type="date" title="Desde"><select id="fsort"><option value="new">Más nuevos primero</option><option value="old">Más viejos primero</option></select></div>
+<div id="plist">Cargando…</div><div id="pg" style="text-align:center"></div></section>
+<section id="pro"><div class="box"><h3 id="ptit">Nuevo producto</h3><input type="hidden" id="pid">
+<input id="pn" placeholder="Nombre"><textarea id="pd" placeholder="Descripción" maxlength="500"></textarea><input id="pc" placeholder="Categoría" list="cats"><datalist id="cats"></datalist>
+<input id="pp" type="number" min="0" placeholder="Precio final de venta">
+<label><input type="checkbox" id="ppub" style="width:auto"> Publicado</label> <label><input type="checkbox" id="pav" checked style="width:auto"> Disponible</label>
+<label>Foto (se comprime a WebP chico): <input type="file" id="pf" accept="image/*"></label><img id="pimg" style="max-width:120px">
+<textarea id="pvar" placeholder="Variantes (una por línea, ej. Rojo)"></textarea><textarea id="pext" placeholder="Adicionales con precio extra (una por línea: nombre | precio)"></textarea><h4>🔒 Costos internos (privados)</h4><input id="ph" type="number" step="0.1" placeholder="Horas de trabajo">
+<div id="costs"></div><button class="b" id="addc">+ Concepto de costo</button>
+<p id="calc"></p><button class="b" id="psave">Guardar</button><button class="b" id="pnew" style="background:#888">Limpiar</button></div><div id="prlist"></div></section>
+<section id="set"><div class="box"><input id="sn" placeholder="Nombre del emprendimiento"><input id="sw" placeholder="WhatsApp (solo números, ej. 5491158875660)">
+<input id="sh" type="number" placeholder="Valor hora ($)"><textarea id="sx" placeholder="Texto de bienvenida"></textarea><input id="sem" type="email" placeholder="Correo de contacto"><input id="svd" type="number" min="1" placeholder="Validez de presupuestos por defecto (días)">
+<textarea id="stm" placeholder="Condiciones generales de presupuestos"></textarea><textarea id="scat" placeholder="Categorías (una por línea)"></textarea><textarea id="sev" placeholder="Tipos de evento (uno por línea)"></textarea>
+<label>Logotipo (se comprime): <input type="file" id="slogo" accept="image/*"></label><img id="slp" style="max-height:50px"><button class="b" id="ssave">Guardar ajustes</button></div></section>
+</div></main><script src="config.js"></script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,query,orderBy,limit,getDocs,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const ap=initializeApp(window.FIREBASE_CONFIG),au=getAuth(ap),db=getFirestore(ap);
+const $=s=>document.querySelector(s),money=n=>'$'+Number(n||0).toLocaleString('es-AR');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const say=(t,c='ok')=>{$('#m').textContent=t;$('#m').className=c};
+const STATES=['nuevo','pendiente de cotización','cotizado','esperando confirmación','confirmado','en producción','listo para entregar','enviado','entregado','cancelado'];
+let hourly=8000,img='',logo='';
+$('#go').onclick=()=>signInWithEmailAndPassword(au,$('#em').value,$('#pw').value).catch(()=>say('Correo o contraseña incorrectos.','er'));
+$('#out').onclick=()=>signOut(au);
+onAuthStateChanged(au,async u=>{
+ $('#login').style.display=u?'none':'block';$('#app').style.display='none';$('#out').style.display=u?'':'none';if(!u)return;
+ try{const a=await getDoc(doc(db,'admins',u.uid));if(!a.exists())throw 0}catch(e){say('Este usuario no está autorizado como administrador.','er');signOut(au);return}
+ $('#app').style.display='block';say('');await loadSet();loadOrders();loadProducts()});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,section').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.t).classList.add('on')});
+async function loadSet(){const s=await getDoc(doc(db,'settings','public'));const d=s.exists()?s.data():{};hourly=d.hourly??8000;
+ $('#sn').value=d.name||'Sueños Artesanales';$('#sw').value=d.whatsapp||'5491158875660';$('#sh').value=hourly;$('#sx').value=d.welcome||'';$('#sem').value=d.email||'';$('#svd').value=d.validity||7;$('#stm').value=d.quoteTerms||'';$('#scat').value=(d.categories||[]).join('\n');$('#sev').value=(d.eventTypes||[]).join('\n');logo=d.logo||'';$('#slp').src=logo;$('#cats').innerHTML=(d.categories||[]).map(c=>`<option value="${esc(c)}">`).join('')}
+$('#slogo').onchange=async e=>{const f=e.target.files[0];if(!f)return;const bm=await createImageBitmap(f);let w=300,q=.8,u;
+ do{const k=Math.min(1,w/bm.width),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;c.getContext('2d').drawImage(bm,0,0,c.width,c.height);u=c.toDataURL('image/webp',q);w-=50;q-=.1}while(u.length>60000&&w>80);
+ if(u.length>60000)return say('Logo demasiado grande.','er');logo=u;$('#slp').src=u};
+$('#ssave').onclick=async()=>{const w=$('#sw').value.replace(/\D/g,'');if(w.length<10)return say('WhatsApp inválido.','er');
+ await setDoc(doc(db,'settings','public'),{name:$('#sn').value,whatsapp:w,hourly:+$('#sh').value||8000,welcome:$('#sx').value.slice(0,500),email:$('#sem').value.slice(0,100),validity:+$('#svd').value||7,quoteTerms:$('#stm').value.slice(0,1000),categories:$('#scat').value.split('\n').map(x=>x.trim().slice(0,50)).filter(Boolean).slice(0,40),eventTypes:$('#sev').value.split('\n').map(x=>x.trim().slice(0,50)).filter(Boolean).slice(0,40),logo,updatedAt:serverTimestamp()},{merge:true});hourly=+$('#sh').value||8000;say('Ajustes guardados.')};
+let OF=1;
+async function loadOrders(){const q=await getDocs(query(collection(db,'orders'),orderBy('createdAt','desc'),limit(200)));window._o=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));window._ids=q.docs.map(d=>d.id);OF=1;showOrders()}
+function card(id){const d={id},o=window._o[id];const ship=o.shipping==='pendiente'?'pendiente':money(o.shipping);const tot=o.itemsTotal+(typeof o.shipping==='number'?o.shipping:0);
+ return `<div class="box"><b>${esc(d.id)}</b> · ${esc(o.customerName)} · <a target="_blank" href="https://wa.me/${esc(o.phone.replace(/\D/g,''))}">${esc(o.phone)}</a><br><small>${o.createdAt?.toDate().toLocaleString('es-AR')||''} · ${esc(o.source)}</small>
+ <ul>${o.items.map(i=>`<li>${esc(i.name)}${i.variant||(i.extras||[]).length?' ('+esc([i.variant,...(i.extras||[])].filter(Boolean).join(', '))+')':''} x${i.qty} — ${money(i.unitPrice)} = ${money(i.subtotal)}</li>`).join('')}</ul>${o.notes?`<p>📝 ${esc(o.notes)}</p>`:''}
+ Productos: <b>${money(o.itemsTotal)}</b> · Envío: <b>${ship}</b> · Total: <b>${money(tot)}</b><br>
+ <select data-s="${d.id}">${STATES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select>
+ <button class="b" data-sh="${d.id}">Definir envío</button><button class="b" data-pr="${d.id}" style="background:#1fc8c8">Imprimir / PDF</button></div>`}
+function showOrders(){const t=$('#fq').value.toLowerCase(),st=$('#fs').value,so=$('#fo').value,fd=$('#fd1').value;
+ let ids=window._ids.filter(id=>{const o=window._o[id];return(!t||(id+o.customerName+o.phone).toLowerCase().includes(t))&&(!st||o.status===st)&&(!so||o.source===so)&&(!fd||(o.createdAt?.toDate().toISOString().slice(0,10)||'')>=fd)});
+ if($('#fsort').value==='old')ids=[...ids].reverse();
+ const pages=Math.max(1,Math.ceil(ids.length/10));OF=Math.min(OF,pages);
+ $('#plist').innerHTML=ids.slice((OF-1)*10,OF*10).map(card).join('')||'Sin pedidos para esos filtros.';
+ $('#pg').innerHTML=`<button class="b" data-pg="-1">◀</button> Página ${OF}/${pages} (${ids.length} pedidos) <button class="b" data-pg="1">▶</button>`}
+$('#fs').innerHTML+=STATES.map(s=>`<option>${s}</option>`).join('');
+['#fq','#fs','#fo','#fd1','#fsort'].forEach(s=>$(s).addEventListener('input',()=>{OF=1;showOrders()}));
+$('#pg').onclick=e=>{const n=+e.target.dataset.pg;if(n){OF=Math.max(1,OF+n);showOrders()}};
+$('#plist').onchange=async e=>{const id=e.target.dataset.s;if(!id)return;const o=window._o[id];
+ const h=[...(o.history||[]),{status:e.target.value,at:new Date().toISOString()}];await updateDoc(doc(db,'orders',id),{status:e.target.value,history:h});o.history=h;o.status=e.target.value;say('Estado actualizado.')};
+$('#plist').onclick=async e=>{const id=e.target.dataset.sh,pr=e.target.dataset.pr;
+ if(id){const v=prompt('Costo de envío en $ (número):');if(v===null)return;const n=Number(v);if(isNaN(n)||n<0)return say('Número inválido.','er');await updateDoc(doc(db,'orders',id),{shipping:n});loadOrders();say('Envío actualizado.')}
+ if(pr){const o=window._o[pr],sh=typeof o.shipping==='number'?o.shipping:0,w=open('','_blank');
+ w.document.write(`<title>${pr}</title><body style="font-family:sans-serif;max-width:640px;margin:auto"><h2>Sueños Artesanales — Pedido ${pr}</h2><p>${esc(o.customerName)} · ${esc(o.phone)}<br>${o.createdAt?.toDate().toLocaleDateString('es-AR')}</p><table width=100% border=1 cellpadding=6 style="border-collapse:collapse"><tr><th>Producto<th>Cant.<th>Precio<th>Subtotal</tr>${o.items.map(i=>`<tr><td>${esc(i.name)}<td>${i.qty}<td>${money(i.unitPrice)}<td>${money(i.subtotal)}</tr>`).join('')}</table><p>Envío: ${o.shipping==='pendiente'?'a confirmar':money(sh)}</p><h3>Total: ${money(o.itemsTotal+sh)}</h3><p>${esc(o.notes||'')}</p><script>print()<\/script>`);w.document.close()}};
+// Productos
+const costRow=(n='',v='')=>`<div class="row"><input placeholder="Concepto" value="${esc(n)}"><input type="number" placeholder="$" value="${esc(v)}"><button class="b" onclick="this.parentNode.remove()">✕</button></div>`;
+$('#addc').onclick=()=>$('#costs').insertAdjacentHTML('beforeend',costRow());
+function costs(){return [...$('#costs').querySelectorAll('.row')].map(r=>{const i=r.querySelectorAll('input');return{name:i[0].value.slice(0,60),amount:+i[1].value||0}}).filter(c=>c.name)}
+function calc(){const c=costs().reduce((a,x)=>a+x.amount,0)+(+$('#ph').value||0)*hourly,p=+$('#pp').value||0,g=p-c;
+ $('#calc').innerHTML=`Costo total: <b>${money(c)}</b> · Ganancia: <b>${money(g)}</b> · Margen sobre venta: <b>${p>0?(g/p*100).toFixed(1)+'%':'—'}</b>`;return c}
+['#pp','#ph','#costs'].forEach(s=>$(s).addEventListener('input',calc));
+$('#pf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const bm=await createImageBitmap(f);let w=500,q=.8,u;
+ do{const k=Math.min(1,w/bm.width),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;c.getContext('2d').drawImage(bm,0,0,c.width,c.height);u=c.toDataURL('image/webp',q);w-=60;q-=.1}while(u.length>150000&&w>150);
+ if(u.length>150000)return say('La imagen es demasiado grande, usá otra.','er');img=u;$('#pimg').src=u;say('Imagen lista ('+Math.round(u.length/1024)+' KB).')};
+function clear(){['pid','pn','pd','pc','pp','ph'].forEach(i=>$('#'+i).value='');$('#ppub').checked=false;$('#pav').checked=true;$('#costs').innerHTML=['Materia prima','Packaging','Máquina/electricidad'].map(n=>costRow(n)).join('');img='';$('#pimg').removeAttribute('src');$('#ptit').textContent='Nuevo producto';$('#pvar').value='';$('#pext').value='';calc()}
+$('#pnew').onclick=clear;
+$('#psave').onclick=async()=>{const p=+$('#pp').value;if(!$('#pn').value.trim()||!(p>=0))return say('Falta nombre o precio.','er');
+ const data={name:$('#pn').value.trim().slice(0,100),description:$('#pd').value.slice(0,500),category:$('#pc').value.slice(0,50),price:p,published:$('#ppub').checked,available:$('#pav').checked,images:img?[img]:[],variants:$('#pvar').value.split('\n').map(x=>x.trim().slice(0,60)).filter(Boolean).slice(0,30),extras:$('#pext').value.split('\n').map(l=>{const [n,p]=l.split('|');return{name:(n||'').trim().slice(0,60),price:Math.max(0,+p||0)}}).filter(x=>x.name).slice(0,20),updatedAt:serverTimestamp()};
+ const id=$('#pid').value||doc(collection(db,'products')).id,old=await getDoc(doc(db,'products',id));
+ if(old.exists()&&!img)data.images=old.data().images||[];
+ await setDoc(doc(db,'products',id),data,{merge:true});
+ await setDoc(doc(db,'productCosts',id),{hours:+$('#ph').value||0,hourly,items:costs(),total:calc()},{merge:true});
+ say('Producto guardado.');clear();loadProducts()};
+async function loadProducts(){const q=await getDocs(query(collection(db,'products'),limit(100)));window._p=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));
+ $('#prlist').innerHTML=q.docs.map(d=>{const p=d.data();return `<div class="box">${p.images?.[0]?`<img src="${esc(p.images[0])}" width=60> `:''}<b>${esc(p.name)}</b> ${money(p.price)} ${p.published?'🟢 publicado':'⚪ oculto'}
+ <button class="b" data-e="${d.id}">Editar</button><button class="b" data-dup="${d.id}" style="background:#ffc93c;color:#333">Duplicar</button><button class="b" data-t="${d.id}" style="background:#1fc8c8">${p.published?'Ocultar':'Publicar'}</button><button class="b" data-x="${d.id}" style="background:#c33">Eliminar</button></div>`}).join('')}
+$('#prlist').onclick=async e=>{const d=e.target.dataset;
+ if(d.t){await updateDoc(doc(db,'products',d.t),{published:!window._p[d.t].published});loadProducts()}
+ if(d.x&&confirm('¿Eliminar este producto? No afecta pedidos ya hechos.')){await deleteDoc(doc(db,'products',d.x));await deleteDoc(doc(db,'productCosts',d.x));loadProducts()}
+ if(d.e||d.dup){const sid=d.e||d.dup,p=window._p[sid],c=await getDoc(doc(db,'productCosts',sid)),k=c.exists()?c.data():{};
+  $('#pid').value=d.dup?'':d.e;$('#pn').value=d.dup?p.name+' (copia)':p.name;$('#pvar').value=(p.variants||[]).join('\n');$('#pext').value=(p.extras||[]).map(x=>x.name+' | '+x.price).join('\n');$('#pd').value=p.description||'';$('#pc').value=p.category||'';$('#pp').value=p.price;$('#ppub').checked=p.published&&!d.dup;$('#pav').checked=p.available!==false;
+  $('#ph').value=k.hours||'';$('#costs').innerHTML=(k.items||[]).map(i=>costRow(i.name,i.amount)).join('');$('#ptit').textContent=(d.dup?'Duplicando: ':'Editando: ')+p.name;if(d.dup){img=(p.images||[])[0]||'';$('#pimg').src=img}calc();scrollTo(0,0)}};
+clear();
+</script></body></html>
